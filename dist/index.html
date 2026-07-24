@@ -44,11 +44,11 @@
     </div>
   </div>
 </div>
-<!-- SDK importmap: 告诉浏览器去哪里找 @lark-base-open/connector-api -->
+<!-- SDK importmap: 使用相对路径引用本地 SDK -->
 <script type="importmap">
 {
   "imports": {
-    "@lark-base-open/connector-api": "https://cdn.jsdelivr.net/npm/@lark-base-open/connector-api@0.1.1/dist/index.mjs"
+    "@lark-base-open/connector-api": "./js/connector-api.mjs"
   }
 }
 </script>
