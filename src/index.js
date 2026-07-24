@@ -109,26 +109,84 @@ export default {
     }
     
     if (path === "/api/table_meta" && request.method === "POST") {
-      const body = await request.json().catch(() => ({}));
-      const fields = (body.fields || []).map((f, i) => ({
-        fieldID: f.fieldID || `field_${i}`,
-        fieldName: f.fieldName || f.fieldID || `字段${i}`,
-        fieldType: parseInt(f.fieldType) || 1,
-        isPrimary: !!f.isPrimary
-      }));
-      return jsonResponse({
-        code: 0, msg: "",
-        data: {
-          tableName: body.tableName || "demo",
-          fields: fields.length > 0 ? fields : [
-            { fieldID: "id", fieldName: "ID", fieldType: 1, isPrimary: true },
-            { fieldID: "name", fieldName: "名称", fieldType: 1, isPrimary: false }
-          ]
+      try {
+        const body = await request.json();
+        let params = {};
+        try { params = JSON.parse(body.params || "{}"); } catch(e) {}
+        const datasourceConfig = JSON.parse(params.datasourceConfig || "{}");
+        const sourceType = datasourceConfig.sourceType || "caoliao";
+
+        if (sourceType === "mysql") {
+          // 官方数据库表结构
+          return jsonResponse({
+            code: 0, msg: "",
+            data: {
+              tableName: "草料码数据",
+              fields: [
+                { fieldID: "code_id", fieldName: "码ID", fieldType: 1, isPrimary: true, description: "码的唯一标识" },
+                { fieldID: "code_name", fieldName: "码名称", fieldType: 1, isPrimary: false },
+                { fieldID: "code_type", fieldName: "码类型", fieldType: 1, isPrimary: false },
+                { fieldID: "code_url", fieldName: "URL", fieldType: 1, isPrimary: false },
+                { fieldID: "state", fieldName: "状态", fieldType: 1, isPrimary: false },
+                { fieldID: "created_at", fieldName: "创建时间", fieldType: 5, isPrimary: false }
+              ]
+            }
+          }, corsHeaders);
+        } else {
+          // OpenAPI - 返回表单字段
+          return jsonResponse({
+            code: 0, msg: "",
+            data: {
+              tableName: "草料表单数据",
+              fields: [
+                { fieldID: "form_id", fieldName: "表单ID", fieldType: 1, isPrimary: true },
+                { fieldID: "form_name", fieldName: "表单名称", fieldType: 1, isPrimary: false },
+                { fieldID: "response_data", fieldName: "填写内容", fieldType: 1, isPrimary: false },
+                { fieldID: "created_at", fieldName: "提交时间", fieldType: 5, isPrimary: false }
+              ]
+            }
+          }, corsHeaders);
         }
-      }, corsHeaders);
+      } catch(e) {
+        return jsonResponse({ code: 1254500, msg: JSON.stringify({ zh: "解析失败", en: "Parse error" }) }, corsHeaders);
+      }
     }
     if (path === "/api/records" && request.method === "POST") {
-      return jsonResponse({ code: 0, msg: "", data: { nextPageToken: "0", hasMore: false, records: [] }}, corsHeaders);
+      try {
+        const body = await request.json();
+        let params = {};
+        try { params = JSON.parse(body.params || "{}"); } catch(e) {}
+        const datasourceConfig = JSON.parse(params.datasourceConfig || "{}");
+        const sourceType = datasourceConfig.sourceType || "caoliao";
+
+        // 返回示例数据（实际应从草料 API/数据库获取）
+        if (sourceType === "mysql") {
+          return jsonResponse({
+            code: 0, msg: "",
+            data: {
+              nextPageToken: "",
+              hasMore: false,
+              records: [
+                { primaryID: "1", data: { code_id: "C001", code_name: "示例码1", code_type: "静态码", code_url: "https://cli.im/xxx", state: "正常", created_at: Date.now() - 86400000 }},
+                { primaryID: "2", data: { code_id: "C002", code_name: "示例码2", code_type: "活码", code_url: "https://cli.im/yyy", state: "正常", created_at: Date.now() - 172800000 }}
+              ]
+            }
+          }, corsHeaders);
+        } else {
+          return jsonResponse({
+            code: 0, msg: "",
+            data: {
+              nextPageToken: "",
+              hasMore: false,
+              records: [
+                { primaryID: "1", data: { form_id: "F001", form_name: "产品调研", response_data: "用户对产品满意", created_at: Date.now() - 3600000 }}
+              ]
+            }
+          }, corsHeaders);
+        }
+      } catch(e) {
+        return jsonResponse({ code: 1254500, msg: JSON.stringify({ zh: "获取数据失败", en: "Fetch error" }) }, corsHeaders);
+      }
     }
     return new Response(JSON.stringify({ code: 404, msg: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
   }
