@@ -68,25 +68,35 @@ export default {
         const sourceType = config.sourceType;
         if (sourceType === "caoliao") {
           const apiKey = config.caoliaoApiKey;
-          if (!apiKey) {
-            return jsonResponse({ success: false, message: "请输入 API Key" }, corsHeaders);
-          }
           try {
-            const resp = await fetch(config.caoliaoApiUrl || "https://open.cli.im/api/v2/rpc", {
+            // 草料二维码 OpenAPI 基础地址
+            const baseUrl = config.caoliaoApiUrl || "https://open.cli.im/api/v1/";
+            // 测试连接 - 使用一个简单的端点验证 API Key 是否有效
+            const testEndpoint = baseUrl.endsWith("/") ? baseUrl + "qrcode/read_markdown" : baseUrl + "/qrcode/read_markdown";
+            const resp = await fetch(testEndpoint, {
               method: "POST",
-              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-              body: JSON.stringify({ action: "list-forms", params: {} })
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${apiKey}`
+              },
+              body: JSON.stringify({ qrcodeUrl: "https://qr61.cn/test/test" })
             });
             const data = await resp.json();
-            if (data.code === 0 || data.success) {
-              const forms = data.data?.list || data.data?.forms || data.data || [];
-              const tables = forms.map(f => ({
-                name: f.name || f.formName || f.id,
-                comment: f.description || f.name || ""
-              }));
+            
+            // 草料 API 返回 code:0 表示成功，其他表示错误
+            if (resp.ok && (data.code === 0 || data.success)) {
+              // 返回可用的表（表单）列表
+              const tables = [
+                { name: "qrcode_data", comment: "二维码数据表" },
+                { name: "form_data", comment: "表单数据表" }
+              ];
               return jsonResponse({ success: true, tables }, corsHeaders);
             } else {
-              return jsonResponse({ success: false, message: data.msg || data.message || "API 返回错误" }, corsHeaders);
+              // API Key 无效或请求格式错误
+              return jsonResponse({ 
+                success: false, 
+                message: data.msg || data.message || "API 返回错误，请检查 API Key 是否正确" 
+              }, corsHeaders);
             }
           } catch (e) {
             return jsonResponse({ success: false, message: `连接失败: ${e.message}` }, corsHeaders);
@@ -192,8 +202,8 @@ select:focus, input:focus { border-color: #3370ff; box-shadow: 0 0 0 2px rgba(51
 </div>
 <div class="field">
 <label>API 地址</label>
-<input type="text" id="caoliaoApiUrl" value="https://open.cli.im/api/v2/rpc" />
-<div class="info">草料二维码 OpenAPI 地址，一般无需修改</div>
+<input type="text" id="caoliaoApiUrl" value="https://open.cli.im/api/v1/" />
+<div class="info">草料二维码 OpenAPI 基础地址，一般无需修改</div>
 </div>
 </div>
 <div id="mysqlConfig" class="hidden">
