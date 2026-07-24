@@ -255,37 +255,19 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
 </div>
 </div>
 <script>
-// 加载飞书 SDK
-(function() {
-  var s = document.createElement('script');
-  s.src = 'https://lf3-static.bytednsdoc.com/obj/eden-cn/zilrai-upabfett/connector-api/0.1.1/connector-api.mjs';
-  s.crossOrigin = 'anonymous';
-  s.onload = function() { window._sdk_loaded = true; };
-  s.onerror = function() { document.getElementById('sourceMsg').innerHTML = '<div class="error">⚠️ SDK 加载失败</div>'; };
-  document.head.appendChild(s);
-})();
-</script>
-<script>
-// 等待 SDK 加载完成
-function waitForSDK(callback) {
-  if (window.bitable) { callback(); }
-  else { setTimeout(function() { waitForSDK(callback); }, 100); }
-}
+// 不依赖 SDK 的 UI 逻辑
+window.savedConfig = null;
+window.availableTables = [];
 
-waitForSDK(function() {
-  var bitable = window.bitable;
-  if (!bitable) { document.getElementById('sourceMsg').innerHTML = '<div class="error">⚠️ 飞书 SDK 加载失败</div>'; return; }
-let availableTables = [];
-
-document.querySelectorAll('input[name="sourceType"]').forEach(r => {
-  r.addEventListener('change', () => {
-    document.getElementById('caoliaoConfig').classList.toggle('hidden', r.value !== 'caoliao');
-    document.getElementById('mysqlConfig').classList.toggle('hidden', r.value !== 'mysql');
+document.querySelectorAll('input[name="sourceType"]').forEach(function(r) {
+  r.addEventListener('change', function() {
+    document.getElementById('caoliaoConfig').classList.toggle('hidden', this.value !== 'caoliao');
+    document.getElementById('mysqlConfig').classList.toggle('hidden', this.value !== 'mysql');
   });
 });
 
 document.getElementById('checkAll').addEventListener('change', function() {
-  document.querySelectorAll('.table-check').forEach(cb => cb.checked = this.checked);
+  document.querySelectorAll('.table-check').forEach(function(cb) { cb.checked = this.checked; }.bind(this));
 });
 
 document.getElementById('testBtn').addEventListener('click', async function() {
@@ -318,18 +300,18 @@ document.getElementById('testBtn').addEventListener('click', async function() {
     const result = await resp.json();
     
     if (result.success) {
-      savedConfig = config;
-      availableTables = result.tables || [];
+      window.savedConfig = config;
+      window.availableTables = result.tables || [];
       msg.innerHTML = '<div class="success">✓ ' + (result.message || '连接成功！') + '</div>';
       
       const tbody = document.getElementById('tableListBody');
       tbody.innerHTML = '';
-      availableTables.forEach(t => {
+      window.availableTables.forEach(function(t) {
         const tr = document.createElement('tr');
         tr.innerHTML = '<td class="checkbox-cell"><input type="checkbox" class="table-check" value="' + t.name + '"></td><td>' + t.name + '</td><td style="color:#646a73;font-size:12px">' + (t.comment || '') + '</td>';
         tbody.appendChild(tr);
       });
-      if (availableTables.length === 0) {
+      if (window.availableTables.length === 0) {
         tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#9b9ea3;padding:16px">将在同步时自动获取表单数据</td></tr>';
       }
       
@@ -344,21 +326,25 @@ document.getElementById('testBtn').addEventListener('click', async function() {
   
   this.disabled = false; this.textContent = '测试连接';
 });
+</script>
+<script type="module">
+// 依赖 SDK 的保存逻辑 - SDK 从 GitHub 加载
+import { bitable } from 'https://cdn.jsdelivr.net/gh/xiaohuoshuan123/caoliao-feishu-connector@main/assets/js/connector-api.mjs';
 
 document.getElementById('startSyncBtn').addEventListener('click', async function() {
   const msg = document.getElementById('syncMsg');
   const checkedBoxes = document.querySelectorAll('.table-check:checked');
-  const selectedTables = Array.from(checkedBoxes).map(cb => cb.value);
+  const selectedTables = Array.from(checkedBoxes).map(function(cb) { return cb.value; });
   const interval = parseInt(document.getElementById('intervalInput').value) || 60;
   const syncMode = document.getElementById('syncMode').value;
   
-  if (availableTables.length > 0 && selectedTables.length === 0) {
+  if (window.availableTables.length > 0 && selectedTables.length === 0) {
     msg.innerHTML = '<div class="error">请至少选择一张表</div>';
     return;
   }
   
   const finalConfig = {
-    ...savedConfig,
+    ...window.savedConfig,
     tables: selectedTables,
     syncInterval: interval,
     syncMode,
@@ -372,7 +358,7 @@ document.getElementById('startSyncBtn').addEventListener('click', async function
     document.getElementById('syncCard').classList.add('hidden');
     document.getElementById('statusCard').classList.remove('hidden');
     
-    const typeLabel = savedConfig.sourceType === 'caoliao' ? '草料 OpenAPI' : '草料官方数据库';
+    const typeLabel = window.savedConfig.sourceType === 'caoliao' ? '草料 OpenAPI' : '草料官方数据库';
     const tableList = selectedTables.length > 0 ? selectedTables.join(', ') : '自动获取所有表单';
     document.getElementById('statusContent').innerHTML = 
       '<p>✓ 配置已保存，数据将按设定周期自动同步</p>' +
