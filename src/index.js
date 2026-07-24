@@ -109,12 +109,23 @@ export default {
     }
     
     if (path === "/api/table_meta" && request.method === "POST") {
-      return jsonResponse({ code: 0, msg: "", data: { tableName: "demo", fields: [
-        { fieldID: "id", fieldName: "ID", fieldType: "number", isPrimary: true },
-        { fieldID: "code_id", fieldName: "码ID", fieldType: "number", isPrimary: false },
-        { fieldID: "name", fieldName: "名称", fieldType: "text", isPrimary: false },
-        { fieldID: "created_at", fieldName: "创建时间", fieldType: "datetime", isPrimary: false }
-      ]}}, corsHeaders);
+      const body = await request.json().catch(() => ({}));
+      const fields = (body.fields || []).map((f, i) => ({
+        fieldID: f.fieldID || `field_${i}`,
+        fieldName: f.fieldName || f.fieldID || `字段${i}`,
+        fieldType: parseInt(f.fieldType) || 1,
+        isPrimary: !!f.isPrimary
+      }));
+      return jsonResponse({
+        code: 0, msg: "",
+        data: {
+          tableName: body.tableName || "demo",
+          fields: fields.length > 0 ? fields : [
+            { fieldID: "id", fieldName: "ID", fieldType: 1, isPrimary: true },
+            { fieldID: "name", fieldName: "名称", fieldType: 1, isPrimary: false }
+          ]
+        }
+      }, corsHeaders);
     }
     if (path === "/api/records" && request.method === "POST") {
       return jsonResponse({ code: 0, msg: "", data: { nextPageToken: "0", hasMore: false, records: [] }}, corsHeaders);
