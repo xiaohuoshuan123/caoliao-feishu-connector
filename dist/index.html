@@ -10,37 +10,127 @@
   .container { max-width: 560px; margin: 0 auto; }
   .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
   h2 { font-size: 18px; color: #1f2328; margin-bottom: 16px; }
+  h3 { font-size: 15px; color: #1f2328; margin-bottom: 12px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #e5e6e8; }
+  .first-section { border-top: none; padding-top: 0; margin-top: 0; }
   label { display: block; font-size: 14px; color: #646a73; margin-bottom: 6px; font-weight: 500; }
-  select, input { width: 100%; padding: 10px 14px; border: 1px solid #d0d3d9; border-radius: 8px; font-size: 14px; outline: none; background: #fff; }
-  select:focus, input:focus { border-color: #3370ff; box-shadow: 0 0 0 2px rgba(51,112,255,0.1); }
+  label .required { color: #ff3b30; }
+  select, input, textarea { width: 100%; padding: 10px 14px; border: 1px solid #d0d3d9; border-radius: 8px; font-size: 14px; outline: none; background: #fff; }
+  select:focus, input:focus, textarea:focus { border-color: #3370ff; box-shadow: 0 0 0 2px rgba(51,112,255,0.1); }
   .field { margin-bottom: 16px; }
   .btn { width: 100%; padding: 12px; background: #3370ff; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; }
   .btn:hover { background: #2860e1; }
   .btn:disabled { background: #b8babd; cursor: not-allowed; }
+  .btn-secondary { background: #f0f2f5; color: #1f2328; }
+  .btn-secondary:hover { background: #e5e6e8; }
+  .btn-row { display: flex; gap: 12px; }
+  .btn-row .btn { flex: 1; }
   .info { font-size: 12px; color: #9b9ea3; margin-top: 4px; }
   .loading { text-align: center; color: #9b9ea3; padding: 40px 0; font-size: 14px; }
   .success { color: #34c759; font-size: 14px; margin-top: 8px; }
   .error { color: #ff3b30; font-size: 14px; margin-top: 8px; }
+  .source-type { display: flex; gap: 12px; margin-bottom: 16px; }
+  .source-type label { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+  .source-type input { width: auto; }
+  .hidden { display: none; }
+  .test-result { margin-top: 8px; font-size: 13px; }
+  .test-result.success { color: #34c759; }
+  .test-result.error { color: #ff3b30; }
 </style>
 </head>
 <body>
 <div class="container">
+  <!-- 数据源配置卡片 -->
   <div class="card">
-    <h2>📊 草料二维码数据同步</h2>
-    <div id="loading" class="loading">加载中...</div>
-    <div id="configForm" style="display:none;">
+    <h2>🔌 数据源配置</h2>
+    <div id="sourceLoading" class="loading">加载中...</div>
+    <div id="sourceForm" style="display:none;">
+      <div class="field">
+        <label>数据源类型</label>
+        <div class="source-type">
+          <label><input type="radio" name="sourceType" value="caoliao" checked> 草料二维码 OpenAPI</label>
+          <label><input type="radio" name="sourceType" value="mysql"> MySQL 数据库</label>
+        </div>
+      </div>
+
+      <!-- 草料二维码配置 -->
+      <div id="caoliaoConfig">
+        <div class="field">
+          <label>API Key <span class="required">*</span></label>
+          <input type="text" id="caoliaoApiKey" placeholder="请输入草料二维码 API Key" />
+          <div class="info">从草料二维码开放平台获取 API Key</div>
+        </div>
+        <div class="field">
+          <label>API 地址</label>
+          <input type="text" id="caoliaoApiUrl" value="https://open.cli.im/api/v2/rpc" placeholder="https://open.cli.im/api/v2/rpc" />
+          <div class="info">草料二维码 OpenAPI 地址，一般无需修改</div>
+        </div>
+      </div>
+
+      <!-- MySQL 配置 -->
+      <div id="mysqlConfig" class="hidden">
+        <div class="field">
+          <label>主机地址 <span class="required">*</span></label>
+          <input type="text" id="mysqlHost" placeholder="localhost 或 IP 地址" />
+        </div>
+        <div class="field">
+          <label>端口</label>
+          <input type="number" id="mysqlPort" value="3306" placeholder="3306" />
+        </div>
+        <div class="field">
+          <label>用户名 <span class="required">*</span></label>
+          <input type="text" id="mysqlUser" placeholder="数据库用户名" />
+        </div>
+        <div class="field">
+          <label>密码 <span class="required">*</span></label>
+          <input type="password" id="mysqlPassword" placeholder="数据库密码" />
+        </div>
+        <div class="field">
+          <label>数据库名 <span class="required">*</span></label>
+          <input type="text" id="mysqlDatabase" placeholder="数据库名称" />
+        </div>
+        <div class="field">
+          <label>字符集</label>
+          <select id="mysqlCharset">
+            <option value="utf8mb4">utf8mb4 (推荐)</option>
+            <option value="utf8">utf8</option>
+            <option value="latin1">latin1</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-secondary" id="testBtn">测试连接</button>
+        <button class="btn" id="saveSourceBtn">保存数据源</button>
+      </div>
+      <div id="sourceMsg"></div>
+    </div>
+  </div>
+
+  <!-- 同步配置卡片 -->
+  <div class="card">
+    <h2>📊 同步配置</h2>
+    <div id="syncLoading" class="loading">请先配置数据源...</div>
+    <div id="syncForm" style="display:none;">
       <div class="field">
         <label>选择要同步的表</label>
-        <select id="tableSelect"><option value="">请选择表</option></select>
-        <div class="info">选择草料数据库中的一张表，同步到飞书多维表格</div>
+        <select id="tableSelect"><option value="">请先配置数据源并测试连接</option></select>
+        <div class="info">选择数据源中的一张表，同步到飞书多维表格</div>
       </div>
       <div class="field">
         <label>同步周期（分钟）</label>
         <input type="number" id="intervalInput" value="60" min="5" max="1440" />
         <div class="info">最小5分钟，最大1440分钟（24小时）</div>
       </div>
-      <button class="btn" id="saveBtn">保存配置并开始同步</button>
-      <div id="msg"></div>
+      <div class="field">
+        <label>同步模式</label>
+        <select id="syncMode">
+          <option value="incremental">增量同步（推荐）</option>
+          <option value="full">全量覆盖</option>
+        </select>
+        <div class="info">增量同步只更新变化的数据，全量覆盖会清空后重新写入</div>
+      </div>
+      <button class="btn" id="saveSyncBtn">保存配置并开始同步</button>
+      <div id="syncMsg"></div>
     </div>
   </div>
 </div>
@@ -59,67 +149,234 @@ import { bitable } from '@lark-base-open/connector-api';
 window.bitable = bitable;
 window.__sdkLoaded = true;
 
-// 加载已保存配置
+// 全局配置
 let savedConfig = null;
+
+// 数据源类型切换
+document.querySelectorAll('input[name="sourceType"]').forEach(radio => {
+  radio.addEventListener('change', function() {
+    const isCaoliao = this.value === 'caoliao';
+    document.getElementById('caoliaoConfig').classList.toggle('hidden', !isCaoliao);
+    document.getElementById('mysqlConfig').classList.toggle('hidden', isCaoliao);
+  });
+});
+
+// 加载已保存配置
 try {
   savedConfig = await bitable.getConfig() || {};
 } catch(e) {}
 
-// 加载可用表列表
-try {
-  const resp = await fetch('/api/tables');
-  const d = await resp.json();
-  const sel = document.getElementById('tableSelect');
-  sel.innerHTML = '';
-  
-  if (d.code === 0 && d.data.length > 0) {
-    d.data.forEach(t => {
-      const opt = document.createElement('option');
-      opt.value = t;
-      opt.textContent = t;
-      sel.appendChild(opt);
-    });
-    
-    if (savedConfig && savedConfig.tableName) sel.value = savedConfig.tableName;
-    if (savedConfig && savedConfig.syncInterval) document.getElementById('intervalInput').value = savedConfig.syncInterval;
-  } else {
-    sel.innerHTML = '<option value="">暂无可用表</option>';
+// 填充数据源表单
+if (savedConfig) {
+  if (savedConfig.sourceType) {
+    const radio = document.querySelector(`input[name="sourceType"][value="${savedConfig.sourceType}"]`);
+    if (radio) {
+      radio.checked = true;
+      radio.dispatchEvent(new Event('change'));
+    }
   }
-} catch(e) {
-  document.getElementById('tableSelect').innerHTML = '<option value="">加载失败</option>';
+  if (savedConfig.caoliaoApiKey) document.getElementById('caoliaoApiKey').value = savedConfig.caoliaoApiKey;
+  if (savedConfig.caoliaoApiUrl) document.getElementById('caoliaoApiUrl').value = savedConfig.caoliaoApiUrl;
+  if (savedConfig.mysqlHost) document.getElementById('mysqlHost').value = savedConfig.mysqlHost;
+  if (savedConfig.mysqlPort) document.getElementById('mysqlPort').value = savedConfig.mysqlPort;
+  if (savedConfig.mysqlUser) document.getElementById('mysqlUser').value = savedConfig.mysqlUser;
+  if (savedConfig.mysqlPassword) document.getElementById('mysqlPassword').value = savedConfig.mysqlPassword;
+  if (savedConfig.mysqlDatabase) document.getElementById('mysqlDatabase').value = savedConfig.mysqlDatabase;
+  if (savedConfig.mysqlCharset) document.getElementById('mysqlCharset').value = savedConfig.mysqlCharset;
+  if (savedConfig.tableName) document.getElementById('tableSelect').value = savedConfig.tableName;
+  if (savedConfig.syncInterval) document.getElementById('intervalInput').value = savedConfig.syncInterval;
+  if (savedConfig.syncMode) document.getElementById('syncMode').value = savedConfig.syncMode;
 }
 
-document.getElementById('loading').style.display = 'none';
-document.getElementById('configForm').style.display = 'block';
+document.getElementById('sourceLoading').style.display = 'none';
+document.getElementById('sourceForm').style.display = 'block';
 
-// 保存配置按钮
-document.getElementById('saveBtn').addEventListener('click', async function() {
+// 如果有数据源配置，加载同步表单
+if (savedConfig && savedConfig.sourceType) {
+  document.getElementById('syncLoading').style.display = 'none';
+  document.getElementById('syncForm').style.display = 'block';
+  loadTableList();
+}
+
+// 测试连接
+document.getElementById('testBtn').addEventListener('click', async function() {
+  const btn = this;
+  const msg = document.getElementById('sourceMsg');
+  
+  const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
+  let config = { sourceType };
+  
+  if (sourceType === 'caoliao') {
+    const apiKey = document.getElementById('caoliaoApiKey').value.trim();
+    const apiUrl = document.getElementById('caoliaoApiUrl').value.trim();
+    if (!apiKey) {
+      msg.innerHTML = '<div class="error">请输入 API Key</div>';
+      return;
+    }
+    config.caoliaoApiKey = apiKey;
+    config.caoliaoApiUrl = apiUrl || 'https://open.cli.im/api/v2/rpc';
+  } else {
+    const host = document.getElementById('mysqlHost').value.trim();
+    const port = parseInt(document.getElementById('mysqlPort').value) || 3306;
+    const user = document.getElementById('mysqlUser').value.trim();
+    const password = document.getElementById('mysqlPassword').value;
+    const database = document.getElementById('mysqlDatabase').value.trim();
+    const charset = document.getElementById('mysqlCharset').value;
+    
+    if (!host || !user || !password || !database) {
+      msg.innerHTML = '<div class="error">请填写完整的 MySQL 连接信息</div>';
+      return;
+    }
+    config.mysqlHost = host;
+    config.mysqlPort = port;
+    config.mysqlUser = user;
+    config.mysqlPassword = password;
+    config.mysqlDatabase = database;
+    config.mysqlCharset = charset;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = '测试中...';
+  msg.innerHTML = '<div class="info">正在测试连接...</div>';
+  
+  try {
+    const resp = await fetch('/api/test-connection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    const result = await resp.json();
+    
+    if (result.success) {
+      msg.innerHTML = `<div class="success">✅ 连接成功！发现 ${result.tables.length} 张表</div>`;
+      // 更新表列表
+      updateTableSelect(result.tables);
+      // 显示同步表单
+      document.getElementById('syncLoading').style.display = 'none';
+      document.getElementById('syncForm').style.display = 'block';
+    } else {
+      msg.innerHTML = `<div class="error">❌ 连接失败: ${result.message}</div>`;
+    }
+  } catch(e) {
+    msg.innerHTML = `<div class="error">❌ 请求失败: ${e.message}</div>`;
+  }
+  
+  btn.disabled = false;
+  btn.textContent = '测试连接';
+});
+
+// 保存数据源
+document.getElementById('saveSourceBtn').addEventListener('click', async function() {
+  const btn = this;
+  const msg = document.getElementById('sourceMsg');
+  
+  const sourceType = document.querySelector('input[name="sourceType"]:checked').value;
+  let config = { sourceType };
+  
+  if (sourceType === 'caoliao') {
+    const apiKey = document.getElementById('caoliaoApiKey').value.trim();
+    const apiUrl = document.getElementById('caoliaoApiUrl').value.trim();
+    if (!apiKey) {
+      msg.innerHTML = '<div class="error">请输入 API Key</div>';
+      return;
+    }
+    config.caoliaoApiKey = apiKey;
+    config.caoliaoApiUrl = apiUrl || 'https://open.cli.im/api/v2/rpc';
+  } else {
+    const host = document.getElementById('mysqlHost').value.trim();
+    const port = parseInt(document.getElementById('mysqlPort').value) || 3306;
+    const user = document.getElementById('mysqlUser').value.trim();
+    const password = document.getElementById('mysqlPassword').value;
+    const database = document.getElementById('mysqlDatabase').value.trim();
+    const charset = document.getElementById('mysqlCharset').value;
+    
+    if (!host || !user || !password || !database) {
+      msg.innerHTML = '<div class="error">请填写完整的 MySQL 连接信息</div>';
+      return;
+    }
+    config.mysqlHost = host;
+    config.mysqlPort = port;
+    config.mysqlUser = user;
+    config.mysqlPassword = password;
+    config.mysqlDatabase = database;
+    config.mysqlCharset = charset;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = '保存中...';
+  
+  try {
+    await bitable.saveConfigAndGoNext(config);
+  } catch(e) {
+    msg.innerHTML = `<div class="error">保存失败: ${e.message}</div>`;
+    btn.disabled = false;
+    btn.textContent = '保存数据源';
+  }
+});
+
+// 保存同步配置
+document.getElementById('saveSyncBtn').addEventListener('click', async function() {
+  const btn = this;
+  const msg = document.getElementById('syncMsg');
+  
   const tableName = document.getElementById('tableSelect').value;
   const interval = parseInt(document.getElementById('intervalInput').value) || 60;
+  const syncMode = document.getElementById('syncMode').value;
   
   if (!tableName) {
-    document.getElementById('msg').innerHTML = '<div class="error">请选择要同步的表</div>';
+    msg.innerHTML = '<div class="error">请选择要同步的表</div>';
     return;
   }
   
-  const btn = this;
+  const config = {
+    ...savedConfig,
+    tableName,
+    syncInterval: interval,
+    syncMode
+  };
+  
   btn.disabled = true;
   btn.textContent = '配置中...';
   
   try {
-    const config = {
-      tableName: tableName,
-      syncInterval: interval,
-      source: 'caoliao-mysql'
-    };
     await bitable.saveConfigAndGoNext(config);
-    // SDK 会关闭窗口 — 后续代码不执行
   } catch(e) {
-    document.getElementById('msg').innerHTML = '<div class="error">保存失败: ' + e.message + '</div>';
+    msg.innerHTML = `<div class="error">保存失败: ${e.message}</div>`;
     btn.disabled = false;
     btn.textContent = '保存配置并开始同步';
   }
 });
+
+// 更新表选择下拉框
+function updateTableSelect(tables) {
+  const sel = document.getElementById('tableSelect');
+  sel.innerHTML = '<option value="">请选择表</option>';
+  tables.forEach(t => {
+    const opt = document.createElement('option');
+    opt.value = t.name;
+    opt.textContent = t.name + (t.comment ? ` (${t.comment})` : '');
+    sel.appendChild(opt);
+  });
+  if (savedConfig && savedConfig.tableName) sel.value = savedConfig.tableName;
+}
+
+// 加载表列表
+async function loadTableList() {
+  const sourceType = savedConfig?.sourceType;
+  if (!sourceType) return;
+  
+  try {
+    const resp = await fetch('/api/test-connection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(savedConfig)
+    });
+    const result = await resp.json();
+    if (result.success && result.tables) {
+      updateTableSelect(result.tables);
+    }
+  } catch(e) {}
+}
 </script>
 </body>
 </html>
