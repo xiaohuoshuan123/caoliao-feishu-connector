@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>草料数据同步配置</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f6f7; padding: 20px; }
+  .container { max-width: 560px; margin: 0 auto; }
+  .card { background: #fff; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 16px; }
+  h2 { font-size: 18px; color: #1f2328; margin-bottom: 16px; }
+  label { display: block; font-size: 14px; color: #646a73; margin-bottom: 6px; font-weight: 500; }
+  select, input { width: 100%; padding: 10px 14px; border: 1px solid #d0d3d9; border-radius: 8px; font-size: 14px; outline: none; background: #fff; }
+  select:focus, input:focus { border-color: #3370ff; box-shadow: 0 0 0 2px rgba(51,112,255,0.1); }
+  .field { margin-bottom: 16px; }
+  .btn { width: 100%; padding: 12px; background: #3370ff; color: #fff; border: none; border-radius: 8px; font-size: 15px; font-weight: 500; cursor: pointer; }
+  .btn:hover { background: #2860e1; }
+  .btn:disabled { background: #b8babd; cursor: not-allowed; }
+  .info { font-size: 12px; color: #9b9ea3; margin-top: 4px; }
+  .loading { text-align: center; color: #9b9ea3; padding: 40px 0; font-size: 14px; }
+  .success { color: #34c759; font-size: 14px; margin-top: 8px; }
+  .error { color: #ff3b30; font-size: 14px; margin-top: 8px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="card">
+    <h2>📊 草料二维码数据同步</h2>
+    <div id="loading" class="loading">加载中...</div>
+    <div id="configForm" style="display:none;">
+      <div class="field">
+        <label>选择要同步的表</label>
+        <select id="tableSelect"><option value="">请选择表</option></select>
+        <div class="info">选择草料数据库中的一张表，同步到飞书多维表格</div>
+      </div>
+      <div class="field">
+        <label>同步周期（分钟）</label>
+        <input type="number" id="intervalInput" value="60" min="5" max="1440" />
+        <div class="info">最小5分钟，最大1440分钟（24小时）</div>
+      </div>
+      <button class="btn" id="saveBtn">保存配置并开始同步</button>
+      <div id="msg"></div>
+    </div>
+  </div>
+</div>
+<!-- SDK importmap: 告诉浏览器去哪里找 @lark-base-open/connector-api -->
+<script type="importmap">
+{
+  "imports": {
+    "@lark-base-open/connector-api": "https://cdn.jsdelivr.net/npm/@lark-base-open/connector-api@0.1.1/dist/index.mjs"
+  }
+}
+</script>
+<script type="module">
+import { bitable } from '@lark-base-open/connector-api';
+
+// 暴露到全局（兼容非模块脚本）
+window.bitable = bitable;
+window.__sdkLoaded = true;
+
+// 加载已保存配置
+let savedConfig = null;
+try {
+  savedConfig = await bitable.getConfig() || {};
+} catch(e) {}
+
+// 加载可用表列表
+try {
+  const resp = await fetch('/api/tables');
+  const d = await resp.json();
+  const sel = document.getElementById('tableSelect');
+  sel.innerHTML = '';
+  
+  if (d.code === 0 && d.data.length > 0) {
+    d.data.forEach(t => {
+      const opt = document.createElement('option');
+      opt.value = t;
+      opt.textContent = t;
+      sel.appendChild(opt);
+    });
+    
+    if (savedConfig && savedConfig.tableName) sel.value = savedConfig.tableName;
+    if (savedConfig && savedConfig.syncInterval) document.getElementById('intervalInput').value = savedConfig.syncInterval;
+  } else {
+    sel.innerHTML = '<option value="">暂无可用表</option>';
+  }
+} catch(e) {
+  document.getElementById('tableSelect').innerHTML = '<option value="">加载失败</option>';
+}
+
+document.getElementById('loading').style.display = 'none';
+document.getElementById('configForm').style.display = 'block';
+
+// 保存配置按钮
+document.getElementById('saveBtn').addEventListener('click', async function() {
+  const tableName = document.getElementById('tableSelect').value;
+  const interval = parseInt(document.getElementById('intervalInput').value) || 60;
+  
+  if (!tableName) {
+    document.getElementById('msg').innerHTML = '<div class="error">请选择要同步的表</div>';
+    return;
+  }
+  
+  const btn = this;
+  btn.disabled = true;
+  btn.textContent = '配置中...';
+  
+  try {
+    const config = {
+      tableName: tableName,
+      syncInterval: interval,
+      source: 'caoliao-mysql'
+    };
+    await bitable.saveConfigAndGoNext(config);
+    // SDK 会关闭窗口 — 后续代码不执行
+  } catch(e) {
+    document.getElementById('msg').innerHTML = '<div class="error">保存失败: ' + e.message + '</div>';
+    btn.disabled = false;
+    btn.textContent = '保存配置并开始同步';
+  }
+});
+</script>
+</body>
+</html>

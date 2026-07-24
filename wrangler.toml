@@ -1,0 +1,16 @@
+name = "caoliao-feishu-connector"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[d1_databases]]
+binding = "D1"
+database_name = "caoliao-db"
+database_id = "your-d1-database-id"
+
+[vars]
+CAOLIAO_API_KEY = ""
+FEISHU_APP_ID = ""
+FEISHU_APP_SECRET = ""
