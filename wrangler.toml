@@ -1,26 +1,12 @@
 name = "caoliao-feishu-connector"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
+compatibility_flags = ["no_standard_modules"]
 
 [triggers]
 crons = ["*/5 * * * *"]
-
-[[d1_databases]]
-binding = "D1"
-database_name = "caoliao-db"
-database_id = "your-d1-database-id"
 
 [vars]
 CAOLIAO_API_KEY = ""
 FEISHU_APP_ID = ""
 FEISHU_APP_SECRET = ""
-
-# MySQL 连接配置（可选）
-# 注意：Cloudflare Workers 不能直接连接 MySQL
-# 需要使用 MySQL 代理服务，如 PlanetScale、TiDB Serverless 等
-# 或者使用 Cloudflare 的 TCP 连接（需要企业版）
-# MYSQL_HOST = ""
-# MYSQL_PORT = "3306"
-# MYSQL_USER = ""
-# MYSQL_PASSWORD = ""
-# MYSQL_DATABASE = ""
