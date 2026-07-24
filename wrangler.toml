@@ -1,7 +1,7 @@
 name = "caoliao-feishu-connector"
 main = "src/index.js"
 compatibility_date = "2024-01-01"
-compatibility_flags = ["no_standard_modules"]
+compatibility_flags = ["nodejs_compat"]
 
 [triggers]
 crons = ["*/5 * * * *"]
