@@ -29,6 +29,7 @@ export default {
         headers: { "Content-Type": "text/html; charset=utf-8", "Content-Security-Policy": "frame-ancestors *", "Cache-Control": "no-cache" }
       });
     }
+
     
     // 测试连接
     if (path === "/api/test-connection" && request.method === "POST") {
@@ -254,6 +255,8 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
 </div>
 </div>
 <script type="module">
+import { bitable } from 'https://lf3-static.bytednsdoc.com/obj/eden-cn/zilrai-upabfett/connector-api/0.1.1/connector-api.mjs';
+
 let savedConfig = null;
 let availableTables = [];
 
