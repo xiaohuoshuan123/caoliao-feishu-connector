@@ -254,10 +254,27 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
 <div id="statusContent" style="font-size:14px;color:#1f2328;line-height:1.8"></div>
 </div>
 </div>
-<script type="module">
-import { bitable } from 'https://lf3-static.bytednsdoc.com/obj/eden-cn/zilrai-upabfett/connector-api/0.1.1/connector-api.mjs';
+<script>
+// 加载飞书 SDK
+(function() {
+  var s = document.createElement('script');
+  s.src = 'https://lf3-static.bytednsdoc.com/obj/eden-cn/zilrai-upabfett/connector-api/0.1.1/connector-api.mjs';
+  s.crossOrigin = 'anonymous';
+  s.onload = function() { window._sdk_loaded = true; };
+  s.onerror = function() { document.getElementById('sourceMsg').innerHTML = '<div class="error">⚠️ SDK 加载失败</div>'; };
+  document.head.appendChild(s);
+})();
+</script>
+<script>
+// 等待 SDK 加载完成
+function waitForSDK(callback) {
+  if (window.bitable) { callback(); }
+  else { setTimeout(function() { waitForSDK(callback); }, 100); }
+}
 
-let savedConfig = null;
+waitForSDK(function() {
+  var bitable = window.bitable;
+  if (!bitable) { document.getElementById('sourceMsg').innerHTML = '<div class="error">⚠️ 飞书 SDK 加载失败</div>'; return; }
 let availableTables = [];
 
 document.querySelectorAll('input[name="sourceType"]').forEach(r => {
