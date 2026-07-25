@@ -22,7 +22,7 @@
 <div class="field">
 <div class="table-wrap">
 <table>
-<thead><tr><th class="checkbox-cell"><input type="checkbox" id="checkAll" checked></th><th>表名</th></tr></thead>
+<thead><tr><th class="checkbox-cell"><input type="checkbox" id="checkAll" checked></th><th>表名</th><th>说明</th></tr></thead>
 <tbody id="tableListBody"></tbody>
 </table>
 </div>
@@ -201,12 +201,54 @@
       log('请求失败: ' + e.message);
     });
 
+  var tableComments = {
+    'base_auth_msg': '填表人信息表',
+    'base_category': '目录/分类信息表',
+    'base_codeinfo': '码的基本信息表（活码、模板子码）',
+    'base_members': '成员信息表',
+    'base_project': '项目信息表',
+    'base_qrcode_templates': '二维码模板表',
+    'base_table_data': '表单数据汇总表',
+    'base_tables': '表单结构信息表',
+    'base_task': '计划基本信息表',
+    'code_state': '码的状态表',
+    'code_state_log': '码的状态变更日志表',
+    'code_tags': '码的分组表',
+    'code_task_log': '计划执行情况表',
+    'cycle_plan': '周期计划配置表',
+    'cycle_task': '周期任务配置表',
+    'cycle_task_entity_task': '周期任务与码关联表',
+    'cycle_task_instance': '周期任务执行实例表',
+    'record_audit_data': '记录审批工单表',
+    'record_review_data': '后续动态数据表',
+    'table_d16': '表单数据明细表（表单16）',
+    'table_d19': '表单数据明细表（表单19）',
+    'table_d22': '表单数据明细表（表单22）',
+    'table_d23': '表单数据明细表（表单23）',
+    'table_d24': '表单数据明细表（表单24）',
+    'table_d27': '表单数据明细表（表单27）',
+    'table_d29': '表单数据明细表（表单29）',
+    'table_d3': '表单数据明细表（表单3）',
+    'table_d30': '表单数据明细表（表单30）',
+    'table_d32': '表单数据明细表（表单32）',
+    'table_d34': '表单数据明细表（表单34）',
+    'table_d6': '表单数据明细表（表单6）',
+    'table_relation': '表单关联关系表',
+    'template_codeinfo_d10': '批量模板子码信息表（模板10）',
+    'template_codeinfo_d12': '批量模板子码信息表（模板12）',
+    'template_codeinfo_d14': '批量模板子码信息表（模板14）',
+    'template_codeinfo_d15': '批量模板子码信息表（模板15）',
+    'template_codeinfo_d25': '批量模板子码信息表（模板25）',
+    'template_codeinfo_d28': '批量模板子码信息表（模板28）'
+  };
+
   function renderTableList(tables) {
     var tbody = document.getElementById('tableListBody');
     tbody.innerHTML = '';
     tables.forEach(function(t) {
+      var comment = tableComments[t.name] || t.comment || '';
       var tr = document.createElement('tr');
-      tr.innerHTML = '<td class="checkbox-cell"><input type="checkbox" class="table-checkbox" value="' + t.name + '" checked></td><td>' + t.name + '</td>';
+      tr.innerHTML = '<td class="checkbox-cell"><input type="checkbox" class="table-checkbox" value="' + t.name + '" checked></td><td>' + t.name + '</td><td style="color:#646a73;font-size:12px">' + comment + '</td>';
       tbody.appendChild(tr);
     });
   }
