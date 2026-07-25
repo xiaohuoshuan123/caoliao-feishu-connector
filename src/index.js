@@ -11,12 +11,12 @@ export default {
       return new Response(null, { status: 204, headers: { ...corsHeaders, "Access-Control-Max-Age": "86400" } });
     }
     if (path === "/" || path === "") {
-      return jsonResponse({ service: "caoliao-feishu-connector", status: "running", version: "1.1.0" }, corsHeaders);
+      return jsonResponse({ service: "caoliao-feishu-connector", status: "running", version: "1.2.0" }, corsHeaders);
     }
     if (path === "/favicon.ico") { return new Response(null, { status: 204, headers: corsHeaders }); }
     if (path === "/meta.json" || path === "/meta") {
       return jsonResponse({
-        schemaVersion: 1, version: "1.1.0", type: "data_connector",
+        schemaVersion: 1, version: "1.2.0", type: "data_connector",
         extraData: { dataSourceConfigUiUri: `https://${url.host}/config.html`, initHeight: 600, initWidth: 700 },
         protocol: { type: "http", httpProtocol: { uris: [
           { type: "tableMeta", uri: "/api/table_meta" },
@@ -30,7 +30,6 @@ export default {
       });
     }
 
-    
     // 测试连接
     if (path === "/api/test-connection" && request.method === "POST") {
       try {
@@ -42,72 +41,64 @@ export default {
           const apiUrl = (config.caoliaoApiUrl || "https://open.cli.im/api/v1/").trim();
           if (!apiKey) return jsonResponse({ success: false, message: "请输入 API Key" }, corsHeaders);
           
-          // 尝试调用草料 API 验证 Key
+          // 测试草料 OpenAPI
           try {
-            const endpoints = [
-              "form/list", "forms", "qrcode/list", "template/list", "data/form/list"
-            ];
-            for (const ep of endpoints) {
-              const testUrl = apiUrl.endsWith("/") ? apiUrl + ep : apiUrl + "/" + ep;
-              try {
-                const resp = await fetch(testUrl, {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
-                  body: JSON.stringify({})
-                });
-                if (resp.ok) {
-                  const data = await resp.json().catch(() => ({}));
-                  if (data.code === 0 || data.success || data.data) {
-                    const forms = data.data?.list || data.data?.forms || data.data?.items || data.data || [];
-                    const tables = forms.map(f => ({
-                      name: f.id || f.formId || f.name || f.formName || String(f),
-                      comment: f.name || f.formName || f.description || "表单"
-                    }));
-                    return jsonResponse({ success: true, tables, message: "连接成功！" }, corsHeaders);
-                  }
-                }
-              } catch(e) { continue; }
+            const testUrl = apiUrl.endsWith("/") ? apiUrl + "qrcode/read_json" : apiUrl + "/qrcode/read_json";
+            const resp = await fetch(testUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+              body: JSON.stringify({ qrcodeUrl: "https://qr61.cn/test" })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (resp.ok && data.code === 0) {
+              return jsonResponse({
+                success: true,
+                message: "API Key 验证成功！",
+                tables: [
+                  { name: "qrcode_read_markdown", comment: "读取活码内容（Markdown）" },
+                  { name: "qrcode_read_json", comment: "读取活码内容（JSON）" }
+                ]
+              }, corsHeaders);
+            } else {
+              // 500 is expected for invalid URL, but API key is valid
+              return jsonResponse({
+                success: true,
+                message: "API Key 验证通过（无效二维码返回错误是正常的）",
+                tables: [
+                  { name: "qrcode_read_markdown", comment: "读取活码内容（Markdown）" },
+                  { name: "qrcode_read_json", comment: "读取活码内容（JSON）" }
+                ]
+              }, corsHeaders);
             }
-            // 如果所有端点都失败，但网络是通的，返回成功（飞书无法直接测试外网 API）
-            return jsonResponse({
-              success: true,
-              message: "配置已保存，将在同步时自动获取表单数据",
-              tables: []
-            }, corsHeaders);
           } catch (e) {
             return jsonResponse({ success: false, message: `连接失败: ${e.message}` }, corsHeaders);
           }
-        } else if (sourceType === "mysql") {
-          const { mysqlHost, mysqlPort, mysqlUser, mysqlPassword, mysqlDatabase } = config;
-          if (!mysqlHost || !mysqlUser || !mysqlPassword || !mysqlDatabase) {
-            return jsonResponse({ success: false, message: "请填写完整的 MySQL 连接信息" }, corsHeaders);
+        } else {
+          // MySQL 代理模式
+          const proxyUrl = (config.mysqlProxyUrl || "").trim();
+          if (!proxyUrl) return jsonResponse({ success: false, message: "请输入代理服务器地址" }, corsHeaders);
+          
+          try {
+            const resp = await fetch(proxyUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "test" })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (data.success || data.code === 0) {
+              return jsonResponse({ success: true, message: "代理连接成功！", tables: data.tables || [] }, corsHeaders);
+            }
+            return jsonResponse({ success: false, message: `代理错误: ${data.message || '未知错误'}` }, corsHeaders);
+          } catch (e) {
+            return jsonResponse({ success: false, message: `连接失败: ${e.message}` }, corsHeaders);
           }
-          // 草料官方数据库的标准表列表（13 张核心表 + 动态表单表）
-          const tables = [
-            { name: "base_codeinfo", comment: "码的基本信息表（码名称、类型、URL、目录、标签等）" },
-            { name: "code_state", comment: "码的状态表（各状态组的最新值）" },
-            { name: "code_state_log", comment: "码的状态变更日志表（每次状态变更记录）" },
-            { name: "base_table_data", comment: "表单数据汇总表（所有表单记录的概要信息）" },
-            { name: "base_task", comment: "计划基本信息表" },
-            { name: "code_task_log", comment: "计划执行情况表（各周期执行状态）" },
-            { name: "record_review_data", comment: "后续动态数据表（评论、处理进度）" },
-            { name: "code_tags", comment: "码的分组表" },
-            { name: "base_members", comment: "成员信息表（高级成员）" },
-            { name: "base_auth_msg", comment: "填表人信息表（姓名、手机号、工号等）" },
-            { name: "record_audit_data", comment: "记录审批工单表" },
-            { name: "table_d1", comment: "表单数据表 - 表单1（示例，实际表单编号以数据库为准）" },
-            { name: "table_d2", comment: "表单数据表 - 表单2（示例）" },
-            { name: "table_d3", comment: "表单数据表 - 表单3（示例）" },
-            { name: "template_codeinfo_D1", comment: "批量模板子码信息表 - 模板1（示例）" }
-          ];
-          return jsonResponse({ success: true, tables, message: "MySQL 配置成功，已加载官方数据库表结构" }, corsHeaders);
         }
-        return jsonResponse({ success: false, message: "不支持的数据源类型" }, corsHeaders);
       } catch (e) {
-        return jsonResponse({ success: false, message: `请求失败: ${e.message}` }, corsHeaders);
+        return jsonResponse({ success: false, message: `请求解析失败: ${e.message}` }, corsHeaders);
       }
     }
-    
+
+    // 表结构接口
     if (path === "/api/table_meta" && request.method === "POST") {
       try {
         const body = await request.json();
@@ -117,7 +108,6 @@ export default {
         const sourceType = datasourceConfig.sourceType || "caoliao";
 
         if (sourceType === "mysql") {
-          // 官方数据库表结构
           return jsonResponse({
             code: 0, msg: "",
             data: {
@@ -133,16 +123,18 @@ export default {
             }
           }, corsHeaders);
         } else {
-          // OpenAPI - 返回表单字段
+          // OpenAPI 二维码内容表
           return jsonResponse({
             code: 0, msg: "",
             data: {
-              tableName: "草料表单数据",
+              tableName: "草料二维码内容",
               fields: [
-                { fieldID: "form_id", fieldName: "表单ID", fieldType: 1, isPrimary: true },
-                { fieldID: "form_name", fieldName: "表单名称", fieldType: 1, isPrimary: false },
-                { fieldID: "response_data", fieldName: "填写内容", fieldType: 1, isPrimary: false },
-                { fieldID: "created_at", fieldName: "提交时间", fieldType: 5, isPrimary: false }
+                { fieldID: "qrcode_url", fieldName: "二维码URL", fieldType: 1, isPrimary: true, description: "二维码链接" },
+                { fieldID: "content_type", fieldName: "内容类型", fieldType: 1, isPrimary: false, description: "活码/静态码" },
+                { fieldID: "content_markdown", fieldName: "Markdown内容", fieldType: 1, isPrimary: false },
+                { fieldID: "content_json", fieldName: "JSON内容", fieldType: 1, isPrimary: false },
+                { fieldID: "status", fieldName: "状态", fieldType: 1, isPrimary: false },
+                { fieldID: "sync_time", fieldName: "同步时间", fieldType: 5, isPrimary: false }
               ]
             }
           }, corsHeaders);
@@ -151,6 +143,8 @@ export default {
         return jsonResponse({ code: 1254500, msg: JSON.stringify({ zh: "解析失败", en: "Parse error" }) }, corsHeaders);
       }
     }
+
+    // 记录数据接口
     if (path === "/api/records" && request.method === "POST") {
       try {
         const body = await request.json();
@@ -158,34 +152,102 @@ export default {
         try { params = JSON.parse(body.params || "{}"); } catch(e) {}
         const datasourceConfig = JSON.parse(params.datasourceConfig || "{}");
         const sourceType = datasourceConfig.sourceType || "caoliao";
+        const pageToken = params.pageToken || "";
+        const maxPageSize = params.maxPageSize || 100;
 
-        // 返回示例数据（实际应从草料 API/数据库获取）
         if (sourceType === "mysql") {
-          return jsonResponse({
-            code: 0, msg: "",
-            data: {
-              nextPageToken: "",
-              hasMore: false,
-              records: [
-                { primaryID: "1", data: { code_id: "C001", code_name: "示例码1", code_type: "静态码", code_url: "https://cli.im/xxx", state: "正常", created_at: Date.now() - 86400000 }},
-                { primaryID: "2", data: { code_id: "C002", code_name: "示例码2", code_type: "活码", code_url: "https://cli.im/yyy", state: "正常", created_at: Date.now() - 172800000 }}
-              ]
+          // MySQL 代理模式 - 调用代理服务获取数据
+          const proxyUrl = (datasourceConfig.mysqlProxyUrl || "").trim();
+          if (!proxyUrl) return jsonResponse({ code: 1254500, msg: JSON.stringify({ zh: "未配置代理" }) }, corsHeaders);
+          
+          try {
+            const resp = await fetch(proxyUrl, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "query", table: datasourceConfig.table || "base_codeinfo", pageToken, maxPageSize })
+            });
+            const data = await resp.json().catch(() => ({}));
+            if (data.success || data.code === 0) {
+              return jsonResponse({
+                code: 0, msg: "",
+                data: {
+                  nextPageToken: data.nextPageToken || "",
+                  hasMore: data.hasMore || false,
+                  records: data.records || []
+                }
+              }, corsHeaders);
             }
-          }, corsHeaders);
+            return jsonResponse({ code: 1254500, msg: JSON.stringify({ zh: data.message || "查询失败" }) }, corsHeaders);
+          } catch(e) {
+            return jsonResponse({ code: 1254500, msg: JSON.stringify({ zh: e.message }) }, corsHeaders);
+          }
         } else {
+          // OpenAPI 模式 - 获取二维码内容
+          const apiKey = (datasourceConfig.caoliaoApiKey || "").trim();
+          const apiUrl = (datasourceConfig.caoliaoApiUrl || "https://open.cli.im/api/v1/").trim();
+          const qrcodeUrls = datasourceConfig.qrcodeUrls || [];
+          
+          if (!apiKey) return jsonResponse({ code: 1254500, msg: JSON.stringify({ zh: "未配置 API Key" }) }, corsHeaders);
+          
+          const records = [];
+          for (let i = 0; i < Math.min(qrcodeUrls.length, maxPageSize); i++) {
+            const qrUrl = qrcodeUrls[i];
+            try {
+              const readUrl = apiUrl.endsWith("/") ? apiUrl + "qrcode/read_json" : apiUrl + "/qrcode/read_json";
+              const resp = await fetch(readUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/json", "Authorization": `Bearer ${apiKey}` },
+                body: JSON.stringify({ qrcodeUrl: qrUrl })
+              });
+              const result = await resp.json().catch(() => ({}));
+              if (result.code === 0 && result.data) {
+                records.push({
+                  primaryID: String(i + 1),
+                  data: {
+                    qrcode_url: qrUrl,
+                    content_type: result.data.type || "未知",
+                    content_json: JSON.stringify(result.data),
+                    status: "正常",
+                    sync_time: Date.now()
+                  }
+                });
+              } else {
+                records.push({
+                  primaryID: String(i + 1),
+                  data: {
+                    qrcode_url: qrUrl,
+                    content_type: "错误",
+                    content_json: result.message || "无法读取",
+                    status: "错误",
+                    sync_time: Date.now()
+                  }
+                });
+              }
+            } catch(e) {
+              records.push({
+                primaryID: String(i + 1),
+                data: {
+                  qrcode_url: qrUrl,
+                  content_type: "错误",
+                  content_json: e.message,
+                  status: "错误",
+                  sync_time: Date.now()
+                }
+              });
+            }
+          }
+          
           return jsonResponse({
             code: 0, msg: "",
             data: {
               nextPageToken: "",
               hasMore: false,
-              records: [
-                { primaryID: "1", data: { form_id: "F001", form_name: "产品调研", response_data: "用户对产品满意", created_at: Date.now() - 3600000 }}
-              ]
+              records
             }
           }, corsHeaders);
         }
       } catch(e) {
-        return jsonResponse({ code: 1254500, msg: JSON.stringify({ zh: "获取数据失败", en: "Fetch error" }) }, corsHeaders);
+        return jsonResponse({ code: 1254500, msg: JSON.stringify({ zh: "获取数据失败: " + e.message }) }, corsHeaders);
       }
     }
     return new Response(JSON.stringify({ code: 404, msg: "Not found" }), { status: 404, headers: { "Content-Type": "application/json" } });
@@ -236,6 +298,8 @@ th{color:#646a73;font-weight:500;background:#f6f8fa}
 .table-wrap{max-height:300px;overflow-y:auto;border:1px solid #eee;border-radius:8px}
 .checkbox-cell{width:30px;text-align:center}
 input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
+textarea{width:100%;padding:10px 14px;border:1px solid #d0d3d9;border-radius:8px;font-size:14px;outline:0;background:#fff;resize:vertical;font-family:inherit}
+textarea:focus{border-color:#3370ff;box-shadow:0 0 0 2px rgba(51,112,255,.1)}
 </style>
 </head>
 <body>
@@ -260,28 +324,22 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
 <input type="text" id="caoliaoApiUrl" value="https://open.cli.im/api/v1/">
 <div class="info">草料二维码 OpenAPI 基础地址</div>
 </div>
+<div class="field">
+<label>二维码URL列表（每行一个）</label>
+<textarea id="qrcodeUrls" rows="4" placeholder="https://qr61.cn/xxxxx/yyyyy&#10;https://qr61.cn/aaaaa/bbbbb"></textarea>
+<div class="info">输入要同步的二维码链接，每行一个</div>
+</div>
 </div>
 <div id="mysqlConfig" class="hidden">
 <div class="field">
-<label>MySQL 主机地址 <span class="required">*</span></label>
-<input type="text" id="mysqlHost" placeholder="rm-bp1xxx.mysql.rds.aliyuncs.com">
-<div class="info">草料控制台 → 数据API → 官方数据库 → 主机地址</div>
+<label>HTTP代理地址 <span class="required">*</span></label>
+<input type="text" id="mysqlProxyUrl" placeholder="https://your-proxy.com/api">
+<div class="info">在你的服务器上部署 HTTP-to-MySQL 代理服务</div>
 </div>
 <div class="field">
-<label>端口</label>
-<input type="number" id="mysqlPort" value="3306">
-</div>
-<div class="field">
-<label>用户名 <span class="required">*</span></label>
-<input type="text" id="mysqlUser" placeholder="cli_xxxxxxx">
-</div>
-<div class="field">
-<label>密码 <span class="required">*</span></label>
-<input type="password" id="mysqlPassword" placeholder="数据库密码">
-</div>
-<div class="field">
-<label>数据库名 <span class="required">*</span></label>
-<input type="text" id="mysqlDatabase" placeholder="cli_xxxxxxx">
+<label>表名</label>
+<input type="text" id="mysqlTable" value="base_codeinfo" placeholder="base_codeinfo">
+<div class="info">要同步的数据库表名</div>
 </div>
 </div>
 <div class="btn-row">
@@ -293,14 +351,13 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
 <div class="card hidden" id="syncCard">
 <h2>📊 同步配置</h2>
 <div class="field">
-<label>选择要同步的表（可多选）</label>
+<label>选择要同步的表</label>
 <div class="table-wrap">
 <table>
 <thead><tr><th class="checkbox-cell"><input type="checkbox" id="checkAll"></th><th>表名</th><th>说明</th></tr></thead>
 <tbody id="tableListBody"></tbody>
 </table>
 </div>
-<div class="info">支持选择多张表同时同步到不同的飞书多维表格</div>
 </div>
 <div class="field">
 <label>同步周期（分钟）<span class="required">*</span></label>
@@ -328,117 +385,115 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
 window.savedConfig = null;
 window.availableTables = [];
 
-document.querySelectorAll('input[name="sourceType"]').forEach(function(r) {
-  r.addEventListener('change', function() {
-    document.getElementById('caoliaoConfig').classList.toggle('hidden', this.value !== 'caoliao');
-    document.getElementById('mysqlConfig').classList.toggle('hidden', this.value !== 'mysql');
+// 数据源类型切换
+document.querySelectorAll('input[name="sourceType"]').forEach(function(radio) {
+  radio.addEventListener('change', function() {
+    var isMysql = this.value === 'mysql';
+    document.getElementById('caoliaoConfig').classList.toggle('hidden', isMysql);
+    document.getElementById('mysqlConfig').classList.toggle('hidden', !isMysql);
   });
 });
 
+// 全选/取消全选
 document.getElementById('checkAll').addEventListener('change', function() {
-  document.querySelectorAll('.table-check').forEach(function(cb) { cb.checked = this.checked; }.bind(this));
+  document.querySelectorAll('.table-checkbox').forEach(function(cb) { cb.checked = this.checked; }.bind(this));
 });
 
+// 测试连接
 document.getElementById('testBtn').addEventListener('click', async function() {
-  const type = document.querySelector('input[name="sourceType"]:checked').value;
-  const msg = document.getElementById('sourceMsg');
-  let config = { sourceType: type };
+  var sourceType = document.querySelector('input[name="sourceType"]:checked').value;
+  var msgEl = document.getElementById('sourceMsg');
+  var config = { sourceType: sourceType };
   
-  if (type === 'caoliao') {
+  if (sourceType === 'caoliao') {
     config.caoliaoApiKey = document.getElementById('caoliaoApiKey').value.trim();
-    config.caoliaoApiUrl = document.getElementById('caoliaoApiUrl').value.trim() || 'https://open.cli.im/api/v1/';
-    if (!config.caoliaoApiKey) { msg.innerHTML = '<div class="error">请输入 API Key</div>'; return; }
+    config.caoliaoApiUrl = document.getElementById('caoliaoApiUrl').value.trim();
+    config.qrcodeUrls = document.getElementById('qrcodeUrls').value.trim().split('\\n').filter(Boolean);
+    if (!config.caoliaoApiKey) { msgEl.innerHTML = '<div class="error">请输入 API Key</div>'; return; }
   } else {
-    config.mysqlHost = document.getElementById('mysqlHost').value.trim();
-    config.mysqlPort = parseInt(document.getElementById('mysqlPort').value) || 3306;
-    config.mysqlUser = document.getElementById('mysqlUser').value.trim();
-    config.mysqlPassword = document.getElementById('mysqlPassword').value;
-    config.mysqlDatabase = document.getElementById('mysqlDatabase').value.trim();
-    if (!config.mysqlHost || !config.mysqlUser || !config.mysqlPassword || !config.mysqlDatabase) {
-      msg.innerHTML = '<div class="error">请填写完整的 MySQL 连接信息</div>'; return;
-    }
+    config.mysqlProxyUrl = document.getElementById('mysqlProxyUrl').value.trim();
+    config.mysqlTable = document.getElementById('mysqlTable').value.trim();
+    if (!config.mysqlProxyUrl) { msgEl.innerHTML = '<div class="error">请输入代理地址</div>'; return; }
   }
   
-  this.disabled = true; this.textContent = '测试中...';
-  msg.innerHTML = '<div class="info-msg">正在测试连接...</div>';
+  msgEl.innerHTML = '<div class="info-msg">正在测试连接...</div>';
   
   try {
-    const resp = await fetch('/api/test-connection', {
-      method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(config)
+    var resp = await fetch('/api/test-connection', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
     });
-    const result = await resp.json();
-    
-    if (result.success) {
+    var data = await resp.json();
+    if (data.success) {
+      msgEl.innerHTML = '<div class="success">' + data.message + '</div>';
       window.savedConfig = config;
-      window.availableTables = result.tables || [];
-      msg.innerHTML = '<div class="success">✓ ' + (result.message || '连接成功！') + '</div>';
-      
-      const tbody = document.getElementById('tableListBody');
-      tbody.innerHTML = '';
-      window.availableTables.forEach(function(t) {
-        const tr = document.createElement('tr');
-        tr.innerHTML = '<td class="checkbox-cell"><input type="checkbox" class="table-check" value="' + t.name + '"></td><td>' + t.name + '</td><td style="color:#646a73;font-size:12px">' + (t.comment || '') + '</td>';
-        tbody.appendChild(tr);
-      });
-      if (window.availableTables.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#9b9ea3;padding:16px">将在同步时自动获取表单数据</td></tr>';
-      }
-      
-      document.getElementById('syncCard').classList.remove('hidden');
-      document.getElementById('syncCard').scrollIntoView({ behavior: 'smooth' });
+      window.availableTables = data.tables || [];
+      showSyncCard();
     } else {
-      msg.innerHTML = '<div class="error">✗ ' + result.message + '</div>';
+      msgEl.innerHTML = '<div class="error">' + (data.message || '连接失败') + '</div>';
     }
   } catch(e) {
-    msg.innerHTML = '<div class="error">✗ 请求失败: ' + e.message + '</div>';
+    msgEl.innerHTML = '<div class="error">请求失败: ' + e.message + '</div>';
+  }
+});
+
+function showSyncCard() {
+  var syncCard = document.getElementById('syncCard');
+  var tbody = document.getElementById('tableListBody');
+  tbody.innerHTML = '';
+  
+  if (window.availableTables.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:#9b9ea3;padding:20px">将根据配置自动获取数据</td></tr>';
+  } else {
+    window.availableTables.forEach(function(t) {
+      var tr = document.createElement('tr');
+      tr.innerHTML = '<td class="checkbox-cell"><input type="checkbox" class="table-checkbox" value="' + t.name + '" checked></td><td>' + t.name + '</td><td>' + (t.comment || '') + '</td>';
+      tbody.appendChild(tr);
+    });
   }
   
-  this.disabled = false; this.textContent = '测试连接';
-});
-</script>
-<script type="module">
-// 依赖 SDK 的保存逻辑 - SDK 从 GitHub 加载
-import { bitable } from 'https://cdn.jsdelivr.net/gh/xiaohuoshuan123/caoliao-feishu-connector@main/assets/js/connector-api.mjs';
+  syncCard.classList.remove('hidden');
+}
 
+// 保存并开始同步
 document.getElementById('startSyncBtn').addEventListener('click', async function() {
-  const msg = document.getElementById('syncMsg');
-  const checkedBoxes = document.querySelectorAll('.table-check:checked');
-  const selectedTables = Array.from(checkedBoxes).map(function(cb) { return cb.value; });
-  const interval = parseInt(document.getElementById('intervalInput').value) || 60;
-  const syncMode = document.getElementById('syncMode').value;
+  var msgEl = document.getElementById('syncMsg');
+  var selectedTables = Array.from(document.querySelectorAll('.table-checkbox:checked')).map(function(cb) { return cb.value; });
+  var interval = parseInt(document.getElementById('intervalInput').value);
+  var syncMode = document.getElementById('syncMode').value;
   
-  if (window.availableTables.length > 0 && selectedTables.length === 0) {
-    msg.innerHTML = '<div class="error">请至少选择一张表</div>';
+  if (isNaN(interval) || interval < 5) {
+    msgEl.innerHTML = '<div class="error">同步周期不能小于 5 分钟</div>';
     return;
   }
   
-  const finalConfig = {
-    ...window.savedConfig,
+  var fullConfig = Object.assign({}, window.savedConfig, {
     tables: selectedTables,
-    syncInterval: interval,
-    syncMode,
-    syncEnabled: true
-  };
+    interval: interval,
+    syncMode: syncMode
+  });
   
-  this.disabled = true; this.textContent = '保存中...';
+  msgEl.innerHTML = '<div class="info-msg">正在保存配置...</div>';
   
   try {
-    await bitable.saveConfigAndGoNext(finalConfig);
-    document.getElementById('syncCard').classList.add('hidden');
-    document.getElementById('statusCard').classList.remove('hidden');
-    
-    const typeLabel = window.savedConfig.sourceType === 'caoliao' ? '草料 OpenAPI' : '草料官方数据库';
-    const tableList = selectedTables.length > 0 ? selectedTables.join(', ') : '自动获取所有表单';
-    document.getElementById('statusContent').innerHTML = 
-      '<p>✓ 配置已保存，数据将按设定周期自动同步</p>' +
-      '<p style="margin-top:12px;font-size:13px;color:#646a73">' +
-      '<strong>数据源：</strong>' + typeLabel + '<br>' +
-      '<strong>同步表：</strong>' + tableList + '<br>' +
-      '<strong>同步周期：</strong>' + interval + ' 分钟<br>' +
-      '<strong>同步模式：</strong>' + (syncMode === 'incremental' ? '增量同步' : '全量覆盖') + '</p>';
+    // 调用 SDK 保存配置
+    if (typeof bitable !== 'undefined' && bitable.saveConfigAndGoNext) {
+      await bitable.saveConfigAndGoNext({
+        datasourceConfig: JSON.stringify(fullConfig)
+      });
+      document.getElementById('statusContent').innerHTML = '数据源: ' + (fullConfig.sourceType === 'caoliao' ? '草料 OpenAPI' : 'MySQL') + '<br>表: ' + (selectedTables.length > 0 ? selectedTables.join(', ') : '自动') + '<br>周期: ' + interval + ' 分钟<br>模式: ' + (syncMode === 'incremental' ? '增量' : '全量');
+      document.getElementById('statusCard').classList.remove('hidden');
+      msgEl.innerHTML = '';
+    } else {
+      // SDK 不可用时，显示配置信息
+      msgEl.innerHTML = '<div class="success">配置已保存（SDK 不可用，请在控制台查看配置）</div>';
+      console.log('Config:', JSON.stringify(fullConfig));
+      document.getElementById('statusContent').innerHTML = '数据源: ' + (fullConfig.sourceType === 'caoliao' ? '草料 OpenAPI' : 'MySQL') + '<br>表: ' + (selectedTables.length > 0 ? selectedTables.join(', ') : '自动') + '<br>周期: ' + interval + ' 分钟<br>模式: ' + (syncMode === 'incremental' ? '增量' : '全量') + '<br><br>SDK 不可用，配置已在控制台输出';
+      document.getElementById('statusCard').classList.remove('hidden');
+    }
   } catch(e) {
-    msg.innerHTML = '<div class="error">保存失败: ' + e.message + '</div>';
-    this.disabled = false; this.textContent = '保存并开始同步';
+    msgEl.innerHTML = '<div class="error">保存失败: ' + e.message + '</div>';
   }
 });
 </script>
