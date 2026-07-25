@@ -3,6 +3,11 @@ main = "src/index.js"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+[[d1_databases]]
+binding = "CAOLIAO_DB"
+database_name = "caoliao-db-cf"
+database_id = "9b412b46-60bd-4a12-9b4b-fb583595ea4c"
+
 [triggers]
 crons = ["*/5 * * * *"]
 
