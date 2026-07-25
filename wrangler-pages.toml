@@ -5,3 +5,8 @@ pages_build_output_dir = "public"
 binding = "CAOLIAO_DB"
 database_name = "caoliao-db-cf"
 database_id = "9b412b46-60bd-4a12-9b4b-fb583595ea4c"
+
+[vars]
+CAOLIAO_API_KEY = ""
+FEISHU_APP_ID = ""
+FEISHU_APP_SECRET = ""

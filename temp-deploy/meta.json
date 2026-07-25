@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "version": "2.0.0",
+  "type": "data_connector",
+  "extraData": {
+    "disabledPeriodicSync": false,
+    "dataSourceConfigUiUri": "https://feishu.yingjideng.dpdns.org/config.html",
+    "initHeight": 600,
+    "initWidth": 700
+  },
+  "protocol": {
+    "type": "http",
+    "httpProtocol": {
+      "uris": [
+        { "type": "tableMeta", "uri": "https://feishu.yingjideng.dpdns.org/api/table_meta" },
+        { "type": "records", "uri": "https://feishu.yingjideng.dpdns.org/api/records" }
+      ]
+    }
+  }
+}

@@ -1,129 +1,128 @@
-// 草料二维码 - 飞书多维表格数据同步连接器
-export default {
-  async fetch(request, env) {
-    const url = new URL(request.url);
-    const path = url.pathname;
-    
-    // 关键：CSP frame-ancestors 可以覆盖 X-Frame-Options
-    const cspHeaders = {
-      "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-      "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      "Content-Security-Policy": "frame-ancestors https://*.feishu.cn https://*.feishucloud.cn https://*.larksuite.com *;",
-      "X-Content-Type-Options": "nosniff",
-    };
-    
-    if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: { ...cspHeaders, "Access-Control-Max-Age": "86400" } });
-    }
-    
-    if (path === "/" || path === "") {
-      return json({ service: "caoliao-feishu-connector", status: "running", version: "2.0.0", tables: 35 }, cspHeaders);
-    }
-    
-    if (path === "/favicon.ico") return new Response(null, { status: 204, headers: cspHeaders });
+// Cloudflare Pages Functions - 全路由处理
+// Pages 不会强制添加 X-Frame-Options: SAMEORIGIN
 
-    if (path === "/meta.json" || path === "/meta") {
-      return json({
-        schemaVersion: 1, version: "2.0.0", type: "data_connector",
-        extraData: {
-          disabledPeriodicSync: false,
-          dataSourceConfigUiUri: "https://feishu-pages.yingjideng.dpdns.org/config.html",
-          initHeight: 600, initWidth: 700
-        },
-        protocol: {
-          type: "http",
-          httpProtocol: {
-            uris: [
-              { type: "tableMeta", uri: "https://feishu-pages.yingjideng.dpdns.org/api/table_meta" },
-              { type: "records", uri: "https://feishu-pages.yingjideng.dpdns.org/api/records" }
-            ]
-          }
+export async function onRequest(context) {
+  const { request, env, next } = context;
+  const url = new URL(request.url);
+  const path = url.pathname;
+  
+  const cspHeaders = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    "Content-Security-Policy": "frame-ancestors *",
+  };
+  
+  if (request.method === "OPTIONS") {
+    return new Response(null, { status: 204, headers: { ...cspHeaders, "Access-Control-Max-Age": "86400" } });
+  }
+  
+  if (path === "/" || path === "") {
+    return json({ service: "caoliao-feishu-connector", status: "running", version: "2.0.0", tables: 35 }, cspHeaders);
+  }
+  
+  if (path === "/favicon.ico") return new Response(null, { status: 204, headers: cspHeaders });
+
+  if (path === "/meta.json" || path === "/meta") {
+    return json({
+      schemaVersion: 1, version: "2.0.0", type: "data_connector",
+      extraData: {
+        disabledPeriodicSync: false,
+        dataSourceConfigUiUri: `https://${url.host}/config.html`,
+        initHeight: 600, initWidth: 700
+      },
+      protocol: {
+        type: "http",
+        httpProtocol: {
+          uris: [
+            { type: "tableMeta", uri: "/api/table_meta" },
+            { type: "records", uri: "/api/records" }
+          ]
         }
-      }, cspHeaders);
-    }
+      }
+    }, cspHeaders);
+  }
 
-    if (path === "/config.html" || path === "/config") {
-      return new Response(CONFIG_HTML, {
-        headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...cspHeaders }
-      });
-    }
+  if (path === "/config.html" || path === "/config") {
+    return new Response(CONFIG_HTML, {
+      headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", ...cspHeaders }
+    });
+  }
 
-    if (path === "/api/test-connection" && request.method === "POST") {
-      try {
+  if (path === "/api/test-connection" && request.method === "POST") {
+    try {
+      const tables = await getD1Tables(env);
+      return json({ success: true, message: `已连接，发现 ${tables.length} 张表`, tables }, cspHeaders);
+    } catch (e) {
+      return json({ success: false, message: `D1连接失败: ${e.message}` }, cspHeaders);
+    }
+  }
+
+  if (path === "/api/table_meta" && request.method === "POST") {
+    try {
+      const body = await request.json();
+      let params = {};
+      try { params = JSON.parse(body.params || "{}"); } catch(e) {}
+      const dsConfig = JSON.parse(params.datasourceConfig || "{}");
+      const tableName = dsConfig.table || dsConfig.tables?.[0] || "";
+
+      if (!tableName) {
         const tables = await getD1Tables(env);
-        return json({ success: true, message: `已连接，发现 ${tables.length} 张表`, tables }, cspHeaders);
-      } catch (e) {
-        return json({ success: false, message: `D1连接失败: ${e.message}` }, cspHeaders);
-      }
-    }
-
-    if (path === "/api/table_meta" && request.method === "POST") {
-      try {
-        const body = await request.json();
-        let params = {};
-        try { params = JSON.parse(body.params || "{}"); } catch(e) {}
-        const dsConfig = JSON.parse(params.datasourceConfig || "{}");
-        const tableName = dsConfig.table || dsConfig.tables?.[0] || "";
-
-        if (!tableName) {
-          const tables = await getD1Tables(env);
-          return json({
-            code: 0, msg: "",
-            data: {
-              tableName: "草料数据库",
-              fields: tables.map((t, i) => ({
-                fieldID: t.name,
-                fieldName: t.name,
-                fieldType: 1,
-                isPrimary: i === 0,
-                description: `${t.name} 表`
-              }))
-            }
-          }, cspHeaders);
-        }
-
-        const fields = await getD1TableFields(env, tableName);
-        return json({
-          code: 0, msg: "",
-          data: { tableName, fields }
-        }, cspHeaders);
-      } catch (e) {
-        return json({ code: 1254500, msg: JSON.stringify({ zh: "解析失败: " + e.message }) }, cspHeaders);
-      }
-    }
-
-    if (path === "/api/records" && request.method === "POST") {
-      try {
-        const body = await request.json();
-        let params = {};
-        try { params = JSON.parse(body.params || "{}"); } catch(e) {}
-        const dsConfig = JSON.parse(params.datasourceConfig || "{}");
-        const tableName = dsConfig.table || dsConfig.tables?.[0] || "";
-        const pageToken = params.pageToken || "";
-        const maxPageSize = Math.min(params.maxPageSize || 100, 500);
-
-        if (!tableName) {
-          return json({ code: 1254500, msg: JSON.stringify({ zh: "未指定表名" }) }, cspHeaders);
-        }
-
-        const result = await getD1Records(env, tableName, pageToken, maxPageSize);
         return json({
           code: 0, msg: "",
           data: {
-            nextPageToken: result.nextPageToken,
-            hasMore: result.hasMore,
-            records: result.records
+            tableName: "草料数据库",
+            fields: tables.map((t, i) => ({
+              fieldID: t.name,
+              fieldName: t.name,
+              fieldType: 1,
+              isPrimary: i === 0,
+              description: `${t.name} 表`
+            }))
           }
         }, cspHeaders);
-      } catch (e) {
-        return json({ code: 1254500, msg: JSON.stringify({ zh: "获取数据失败: " + e.message }) }, cspHeaders);
       }
-    }
 
-    return new Response(JSON.stringify({ code: 404, msg: "Not found" }), { status: 404 });
+      const fields = await getD1TableFields(env, tableName);
+      return json({
+        code: 0, msg: "",
+        data: { tableName, fields }
+      }, cspHeaders);
+    } catch (e) {
+      return json({ code: 1254500, msg: JSON.stringify({ zh: "解析失败: " + e.message }) }, cspHeaders);
+    }
   }
-};
+
+  if (path === "/api/records" && request.method === "POST") {
+    try {
+      const body = await request.json();
+      let params = {};
+      try { params = JSON.parse(body.params || "{}"); } catch(e) {}
+      const dsConfig = JSON.parse(params.datasourceConfig || "{}");
+      const tableName = dsConfig.table || dsConfig.tables?.[0] || "";
+      const pageToken = params.pageToken || "";
+      const maxPageSize = Math.min(params.maxPageSize || 100, 500);
+
+      if (!tableName) {
+        return json({ code: 1254500, msg: JSON.stringify({ zh: "未指定表名" }) }, cspHeaders);
+      }
+
+      const result = await getD1Records(env, tableName, pageToken, maxPageSize);
+      return json({
+        code: 0, msg: "",
+        data: {
+          nextPageToken: result.nextPageToken,
+          hasMore: result.hasMore,
+          records: result.records
+        }
+      }, cspHeaders);
+    } catch (e) {
+      return json({ code: 1254500, msg: JSON.stringify({ zh: "获取数据失败: " + e.message }) }, cspHeaders);
+    }
+  }
+
+  return new Response(JSON.stringify({ code: 404, msg: "Not found" }), { status: 404 });
+}
 
 async function getD1Tables(env) {
   const result = await env.CAOLIAO_DB.prepare(
@@ -190,7 +189,6 @@ function json(data, headers = {}) {
   });
 }
 
-// 配置页面 - 完全独立实现，不依赖任何外部SDK
 const CONFIG_HTML = `<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -269,7 +267,6 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
 
 <script>
 (function() {
-  // 调试日志面板
   var debugLog = document.getElementById('debugLog');
   function log(msg) {
     var time = new Date().toLocaleTimeString();
@@ -278,17 +275,12 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
     console.log('[Connector]', msg);
   }
   
-  log('页面加载完成，开始初始化...');
-  
-  // ============================================
-  // 飞书连接器 SDK 轻量实现
-  // 协议分析：connector-api.mjs 的 postMessage 通信
-  // ============================================
+  log('页面加载完成');
   
   var prefixId = '';
   var invokeCount = 0;
   var resultMap = {};
-  var handshakeStatus = 0; // 0=pending, 1=success, 2=error/timeout
+  var handshakeStatus = 0;
 
   function generateId(prefix) {
     return prefix + '-' + Date.now() + '-' + (++invokeCount);
@@ -303,7 +295,6 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
     log('收到握手响应: ' + JSON.stringify(data).substring(0, 200));
     prefixId = (data.payload && data.payload.prefixId) || '';
     handshakeStatus = 1;
-    // 确认握手成功
     sendMsg({
       id: data.id,
       type: 'handshake',
@@ -331,7 +322,7 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
   }
 
   function startHandshake() {
-    log('开始握手，发送握手消息...');
+    log('开始握手...');
     var retryCount = 0;
     var maxRetries = 5;
     
@@ -350,7 +341,7 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
         clearInterval(retryInterval);
         if (handshakeStatus !== 1) {
           handshakeStatus = 2;
-          log('握手超时失败（重试 ' + maxRetries + ' 次）');
+          log('握手超时失败');
         }
         return;
       }
@@ -372,7 +363,6 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
           payload: { key: key, params: params, prefixId: prefixId }
         });
         resultMap[id] = resolve;
-        // 15秒超时
         setTimeout(function() {
           if (resultMap[id]) {
             delete resultMap[id];
@@ -401,22 +391,15 @@ input[type="checkbox"]{width:16px;height:16px;cursor:pointer}
     });
   }
 
-  // 初始化
   window.addEventListener('message', handleMessage);
   startHandshake();
-  
-  log('SDK 初始化完成，握手状态: ' + handshakeStatus);
+  log('SDK 初始化完成');
 
-  // ============================================
-  // 配置页面逻辑
-  // ============================================
-  
   var sourceMsg = document.getElementById('sourceMsg');
   var syncCard = document.getElementById('syncCard');
   var syncMsg = document.getElementById('syncMsg');
   var startSyncBtn = document.getElementById('startSyncBtn');
 
-  // 自动测试连接
   sourceMsg.innerHTML = '<div class="info-msg"><span class="loading"></span>正在连接 D1 数据库...</div>';
   
   log('开始测试连接...');
